@@ -5,32 +5,44 @@ include 'db_connect.php';
 $user_id = $_GET['user_id'] ?? null;
 
 if (!$user_id) {
-    echo json_encode([]); // Return empty list if no ID
+    echo json_encode([]); 
     exit();
 }
 
-// 1. Fetch History (Newest first)
-$sql = "SELECT id, predicted_dosha, created_at FROM predictions WHERE user_id = '$user_id' ORDER BY created_at DESC";
+// UPDATED QUERY:
+// Now selects vata/pitta/kapha scores (for History Graph)
+// AND sleep_hours, hydration, stress_level (for Insights Charts)
+$sql = "SELECT id, predicted_dosha, vata_score, pitta_score, kapha_score, sleep_hours, hydration, stress_level, created_at 
+        FROM prediction_history 
+        WHERE user_id = '$user_id' 
+        ORDER BY created_at DESC";
+
 $result = $conn->query($sql);
 
 $history = [];
 
-if ($result->num_rows > 0) {
+if ($result && $result->num_rows > 0) {
     while($row = $result->fetch_assoc()) {
-        // 2. Format the date nicely (Optional)
-        // This converts SQL date "2024-01-15 14:30:00" to "2024-01-15"
-        $date = date("Y-m-d", strtotime($row['created_at']));
-        
         $history[] = [
             "id" => $row['id'],
-            "predicted_dosha" => $row['predicted_dosha'], // Must match @SerializedName in Kotlin
-            "created_at" => $date                         // Must match @SerializedName in Kotlin
+            "predicted_dosha" => $row['predicted_dosha'],
+            
+            // Dosha Scores (Integers)
+            "vata_score" => (int)$row['vata_score'],
+            "pitta_score" => (int)$row['pitta_score'],
+            "kapha_score" => (int)$row['kapha_score'],
+            
+            // Insights Data (Floats/Ints)
+            // Use 'floatval' to ensure they aren't strings in JSON
+            "sleep_hours" => floatval($row['sleep_hours']),
+            "hydration" => floatval($row['hydration']),
+            "stress_level" => (int)$row['stress_level'],
+            
+            "created_at" => $row['created_at']
         ];
     }
 }
 
-// 3. Return JSON List
 echo json_encode($history);
-
 $conn->close();
 ?>
