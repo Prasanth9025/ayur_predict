@@ -1,39 +1,32 @@
 <?php
-require_once 'db_connect.php';
-header("Content-Type: application/json; charset=UTF-8");
+// htdocs/ayur_predict/login.php
 
-$data = json_decode(file_get_contents("php://input"));
+include 'db_connect.php';
 
-if (isset($data->email) && isset($data->password)) {
+$data = json_decode(file_get_contents("php://input"), true);
+$email = $conn->real_escape_string($data['email']);
+$password = $data['password']; // Plain text password from app
+
+// 1. Fetch user by Email ONLY (do not check password in SQL)
+$sql = "SELECT id, name, password FROM users WHERE email = '$email'";
+$result = $conn->query($sql);
+
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
     
-    // 1. Find user by email
-    $stmt = $conn->prepare("SELECT id, name, password FROM users WHERE email = ?");
-    $stmt->bind_param("s", $data->email);
-    $stmt->execute();
-    $stmt->store_result();
-    
-    if ($stmt->num_rows > 0) {
-        $stmt->bind_result($id, $name, $hashed_password);
-        $stmt->fetch();
-
-        // 2. Verify Password
-        if (password_verify($data->password, $hashed_password)) {
-            // SUCCESS: Return the User ID and Name
-            echo json_encode([
-                "status" => "success",
-                "message" => "Login successful",
-                "user_id" => $id,
-                "name" => $name
-            ]);
-        } else {
-            echo json_encode(["status" => "error", "message" => "Invalid password"]);
-        }
+    // 2. Verify the Password Hash
+    // This checks the plain text '$password' against the hash from DB '$row['password']'
+    if (password_verify($password, $row['password'])) {
+        echo json_encode([
+            "status" => "success", 
+            "message" => "Login successful",
+            "user_id" => $row['id'],
+            "name" => $row['name']
+        ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "User not found"]);
+        echo json_encode(["status" => "error", "message" => "Invalid Password"]);
     }
-    $stmt->close();
 } else {
-    echo json_encode(["status" => "error", "message" => "Incomplete data"]);
+    echo json_encode(["status" => "error", "message" => "User not found"]);
 }
-$conn->close();
 ?>
